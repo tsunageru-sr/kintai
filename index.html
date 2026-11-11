@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="kintai-launcher" content="1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#1D4ED8">
+<meta name="apple-mobile-web-app-title" content="勤怠打刻">
+<title>勤怠打刻</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  :root { --blue: #1D4ED8; --navy: #1B2430; --ink: #0F172A; --sub: #475569; --line: #E2E8F0; --bg: #F1F5F9; --warn-bg: #FFF7ED; --warn: #9A3412; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", Meiryo, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.7; -webkit-text-size-adjust: 100%; }
+  main { max-width: 480px; margin: 0 auto; padding: 28px 18px calc(32px + env(safe-area-inset-bottom)); }
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .head img { width: 64px; height: 64px; border-radius: 15px; flex: none; }
+  h1 { font-size: 21px; line-height: 1.4; margin: 0; }
+  .lead { margin: 2px 0 0; color: var(--sub); font-size: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; margin: 12px 0; }
+  .card h2 { font-size: 16px; margin: 0 0 6px; }
+  ol { margin: 0; padding-left: 1.4em; }
+  li { margin: 4px 0; }
+  .first { border: 2px solid var(--blue); }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--blue); border-radius: 999px; padding: 1px 10px; margin-left: 6px; vertical-align: 2px; }
+  .note { font-size: 13px; color: var(--sub); margin: 8px 0 0; }
+  .warn { background: var(--warn-bg); border-color: #FDBA74; color: var(--warn); }
+  .btn { display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 14px; background: var(--blue); color: #fff;
+    font-size: 17px; font-weight: 700; text-decoration: none; margin: 18px 0 6px; }
+  .btn:focus-visible { outline: 3px solid #93C5FD; outline-offset: 2px; }
+  .center { text-align: center; }
+  .spin { width: 28px; height: 28px; border: 4px solid #BFDBFE; border-top-color: var(--blue); border-radius: 50%; margin: 40px auto 12px; animation: s 0.9s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <!-- 初めて開いたとき（QRコードから）：ホーム画面に追加する案内 -->
+  <section id="vSetup" hidden>
+    <div class="head">
+      <img src="icon-180.png" alt="">
+      <div>
+        <h1>「勤怠打刻」をホーム画面に追加しましょう</h1>
+        <p class="lead">追加したアイコンから、打刻の画面がすぐに開きます。</p>
+      </div>
+    </div>
+
+    <div class="card warn" id="inApp" hidden>
+      <b>いまはLINEなどのアプリの中で開いています。</b><br>
+      このままでは追加できません。画面の右上か右下のメニューから「ブラウザで開く」（iPhoneは「Safariで開く」）を選んでから、下の手順で追加してください。
+    </div>
+
+    <div class="card" id="cIos">
+      <h2>iPhone（Safari）<span class="tag" id="tIos" hidden>お使いのスマホ</span></h2>
+      <ol>
+        <li>共有ボタン（四角から上に矢印が出たマーク）を押します。見当たらないときは、画面下の「…」の中にあります。</li>
+        <li>「ホーム画面に追加」を押します（出てこないときは、下に少しずらします）。</li>
+        <li>「Webアプリとして開く」というスイッチが出たときは、オフにします。</li>
+        <li>右上の「追加」を押します。</li>
+      </ol>
+    </div>
+
+    <div class="card" id="cAnd">
+      <h2>Android（Chrome）<span class="tag" id="tAnd" hidden>お使いのスマホ</span></h2>
+      <ol>
+        <li>右上の「︙」を押します。</li>
+        <li>「ホーム画面に追加」を押します。</li>
+        <li>「追加」を押します（「インストール」と出たときも同じです）。</li>
+      </ol>
+    </div>
+
+    <p class="note">前に追加した「勤」の文字のアイコンがある人は、新しいアイコンを追加したあとで、前のアイコンを削除してください（アイコンを長押し →「ブックマークを削除」または「削除」）。</p>
+
+    <a class="btn" id="goBtn" href="#">打刻の画面を開く</a>
+    <p class="note center">追加が済んだら、次からはホーム画面のアイコンから開いてください。</p>
+  </section>
+
+  <!-- ホーム画面のアイコンから開いたとき：すぐに打刻の画面へ -->
+  <section id="vGo" hidden>
+    <div class="spin" aria-hidden="true"></div>
+    <p class="center">打刻の画面を開いています…</p>
+    <p class="center note">開かないときは <a id="goLink" href="#">こちら</a> を押してください。</p>
+  </section>
+
+  <!-- QRコード以外から開いたとき -->
+  <section id="vNone" hidden>
+    <div class="head">
+      <img src="icon-180.png" alt="">
+      <h1>勤怠打刻</h1>
+    </div>
+    <div class="card">
+      この画面は、会社から配られた「登録のご案内」のQRコードから開いてください。<br>
+      案内をなくしたときは、会社の担当者に連絡してください。
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'kintai-entry-v1';
+  var $ = function (id) { return document.getElementById(id); };
+  var q = new URLSearchParams(location.search);
+
+  // 転送先は Google のウェブアプリ（script.google.com）だけ。ほかのサイトへは飛ばさない
+  function clean(e) {
+    if (!e) return null;
+    var s = String(e.s || ''), d = String(e.d || ''), code = String(e.code || '');
+    if (!/^[A-Za-z0-9_-]{20,}$/.test(s)) return null;
+    if (d && !/^[A-Za-z0-9.-]{1,253}$/.test(d)) return null;
+    if (!/^[A-Za-z0-9]{4,16}$/.test(code)) return null;
+    return { s: s, d: d, code: code };
+  }
+  function target(e) {
+    return 'https://script.google.com/' + (e.d ? 'a/macros/' + e.d + '/' : 'macros/') + 's/' + e.s + '/exec?code=' + encodeURIComponent(e.code);
+  }
+  function ownUrl(e) {
+    return location.pathname + '?s=' + encodeURIComponent(e.s) + (e.d ? '&d=' + encodeURIComponent(e.d) : '') + '&code=' + encodeURIComponent(e.code);
+  }
+  function load() { try { return clean(JSON.parse(localStorage.getItem(KEY) || 'null')); } catch (x) { return null; } }
+  function save(e) { try { localStorage.setItem(KEY, JSON.stringify(e)); } catch (x) { /* 保存できない端末はURLだけで動く */ } }
+
+  var fromUrl = clean({ s: q.get('s'), d: q.get('d'), code: q.get('code') });
+  var hasParams = q.has('s') || q.has('code');
+  var entry = fromUrl || (hasParams ? null : load());
+
+  if (!entry) { $('vNone').hidden = false; return; }
+  if (fromUrl) save(fromUrl);
+
+  var url = target(entry);
+  $('goBtn').href = url;
+  $('goLink').href = url;
+
+  if (q.get('setup') === '1') {
+    // ホーム画面に入るアドレスから「初回の印」を外す（次からはアイコンですぐ打刻画面へ）
+    try { history.replaceState(null, '', ownUrl(entry)); } catch (x) { /* 古い端末はそのまま */ }
+    var ua = navigator.userAgent || '';
+    var isIos = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var isAnd = /Android/.test(ua);
+    var inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
+    $('inApp').hidden = !inApp;
+    if (isIos) { $('tIos').hidden = false; $('cIos').classList.add('first'); }
+    if (isAnd) {
+      $('tAnd').hidden = false; $('cAnd').classList.add('first');
+      $('cAnd').parentNode.insertBefore($('cAnd'), $('cIos'));
+    }
+    $('vSetup').hidden = false;
+    return;
+  }
+
+  $('vGo').hidden = false;
+  var go = function () { location.replace(url); };
+  // ホーム画面から開き直したとき（前の画面が残っていたとき）も、もう一度打刻画面へ
+  window.addEventListener('pageshow', function (ev) { if (ev.persisted) go(); });
+  go();
+})();
+</script>
+</body>
+</html>
