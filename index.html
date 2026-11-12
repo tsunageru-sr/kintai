@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-title" content="勤怠打刻">
 <title>勤怠打刻</title>
 <link rel="apple-touch-icon" href="icon-180.png">
+<!-- 打刻の画面（Google）への接続を先に始めておく -->
+<link rel="preconnect" href="https://script.google.com">
+<link rel="dns-prefetch" href="https://script.google.com">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
   :root { --blue: #1D4ED8; --navy: #1B2430; --ink: #0F172A; --sub: #475569; --line: #E2E8F0; --bg: #F1F5F9; --warn-bg: #FFF7ED; --warn: #9A3412; }
@@ -180,9 +183,12 @@
     opened = true;
     $('vGo').hidden = false;
     var st = embedState(entry.s);
-    if (st === 'ok') { embed(); return; }
     if (st === 'ng') { go(); return; }
-    probe(entry).then(function (ok) { if (ok) embed(); else go(); });
+    // はめ込みをすぐ始める。初めてのときは、並行して打刻アプリの版を確かめ、
+    // 前の版（はめ込めない）とわかったら転送する
+    embed();
+    if (st === 'ok') return;
+    probe(entry).then(function (ok) { if (!ok && !shown) go(); });
   }
 
   // 打刻アプリの版を確かめる（ping の応答「KINTAI_PING v0.11 …」）。確かめられないときは転送
