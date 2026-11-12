@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="kintai-launcher" content="1">
+<meta name="kintai-launcher-mode" content="embed">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#1D4ED8">
@@ -36,6 +37,17 @@
   .center { text-align: center; }
   .spin { width: 28px; height: 28px; border: 4px solid #BFDBFE; border-top-color: var(--blue); border-radius: 50%; margin: 40px auto 12px; animation: s 0.9s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
+  /* はめ込み表示（打刻の画面をこのページの中に出す。Googleのお知らせを出さないため） */
+  body.embed { overflow: hidden; }
+  .frame { position: fixed; inset: 0; z-index: 1; background: #F4F5F7;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .frame iframe { display: block; width: 100%; height: 100%; border: 0; background: #F4F5F7; }
+  .frame.wait { visibility: hidden; }
+  .slow { position: fixed; z-index: 2; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); max-width: 456px; margin: 0 auto;
+    background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 4px; box-shadow: 0 6px 24px rgba(15, 23, 42, 0.18); }
+  .slow p { margin: 0 28px 0 0; font-size: 14px; }
+  .slow .btn { margin: 10px 0 8px; min-height: 46px; font-size: 16px; }
+  .slow .x { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; border: 0; background: none; font-size: 20px; color: var(--sub); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -88,6 +100,13 @@
     <p class="center note">開かないときは <a id="goLink" href="#">こちら</a> を押してください。</p>
   </section>
 
+  <!-- はめ込みで画面が出ないとき -->
+  <div class="slow" id="slow" role="alert" hidden>
+    <p>打刻の画面が出ないときは、下のボタンで開き直してください。</p>
+    <a class="btn" id="slowBtn" href="#">開き直す</a>
+    <button type="button" class="x" id="slowX" aria-label="閉じる">×</button>
+  </div>
+
   <!-- QRコード以外から開いたとき -->
   <section id="vNone" hidden>
     <div class="head">
@@ -117,14 +136,27 @@
     if (!/^[A-Za-z0-9]{4,16}$/.test(code)) return null;
     return { s: s, d: d, code: code };
   }
-  function target(e) {
-    return 'https://script.google.com/' + (e.d ? 'a/macros/' + e.d + '/' : 'macros/') + 's/' + e.s + '/exec?code=' + encodeURIComponent(e.code);
+  function base(e) {
+    return 'https://script.google.com/' + (e.d ? 'a/macros/' + e.d + '/' : 'macros/') + 's/' + e.s + '/exec';
   }
+  function target(e) { return base(e) + '?code=' + encodeURIComponent(e.code); }
   function ownUrl(e) {
     return location.pathname + '?s=' + encodeURIComponent(e.s) + (e.d ? '&d=' + encodeURIComponent(e.d) : '') + '&code=' + encodeURIComponent(e.code);
   }
   function load() { try { return clean(JSON.parse(localStorage.getItem(KEY) || 'null')); } catch (x) { return null; } }
   function save(e) { try { localStorage.setItem(KEY, JSON.stringify(e)); } catch (x) { /* 保存できない端末はURLだけで動く */ } }
+  // はめ込みで開けたか（ウェブアプリのIDごと）を覚えておく。
+  // 開けた → 次からは版を確かめずにすぐはめ込む／開けなかった → 1日は転送で開く
+  var EKEY = 'kintai-embed-v1', DAY = 24 * 60 * 60 * 1000;
+  function embedState(s) {
+    try {
+      var v = JSON.parse(localStorage.getItem(EKEY) || 'null');
+      if (!v || v.s !== s) return '';
+      if (v.ok) return 'ok';
+      return (Date.now() - Number(v.at || 0) < DAY) ? 'ng' : '';
+    } catch (x) { return ''; }
+  }
+  function setEmbed(s, ok) { try { localStorage.setItem(EKEY, JSON.stringify({ s: s, ok: !!ok, at: Date.now() })); } catch (x) { /* 覚えられない端末は毎回確かめる */ } }
 
   var fromUrl = clean({ s: q.get('s'), d: q.get('d'), code: q.get('code') });
   var hasParams = q.has('s') || q.has('code');
@@ -137,6 +169,79 @@
   $('goBtn').href = url;
   $('goLink').href = url;
 
+  /* ---------- 打刻の画面を開く ----------
+     v0.11 以降の打刻アプリは、このページの中にはめ込んで表示する（画面上部のGoogleのお知らせが出ない）。
+     前の版の打刻アプリや、はめ込みでうまく開けないときは、今までどおり打刻の画面へ移る（転送） */
+  function go() { location.replace(url); }
+
+  var opened = false;
+  function open() {
+    if (opened) return;
+    opened = true;
+    $('vGo').hidden = false;
+    var st = embedState(entry.s);
+    if (st === 'ok') { embed(); return; }
+    if (st === 'ng') { go(); return; }
+    probe(entry).then(function (ok) { if (ok) embed(); else go(); });
+  }
+
+  // 打刻アプリの版を確かめる（ping の応答「KINTAI_PING v0.11 …」）。確かめられないときは転送
+  function probe(e) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (v) { if (!done) { done = true; resolve(v); } };
+      setTimeout(function () { finish(false); }, 8000);
+      if (!window.fetch) { finish(false); return; }
+      fetch(base(e) + '?ping=1', { credentials: 'omit', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (txt) {
+          var m = /^KINTAI_PING v(\d+)\.(\d+)/.exec(String(txt || ''));
+          finish(!!m && (Number(m[1]) > 0 || Number(m[2]) >= 11));
+        })
+        .catch(function () { finish(false); });
+    });
+  }
+
+  var shown = false, timer = null;
+  function embed() {
+    document.body.classList.add('embed');
+    var box = document.createElement('div');
+    box.className = 'frame wait';
+    box.id = 'frame';
+    var f = document.createElement('iframe');
+    f.title = '勤怠打刻';
+    f.setAttribute('allow', 'geolocation *');
+    f.src = url;
+    box.appendChild(f);
+    document.body.appendChild(box);
+    window.addEventListener('message', function (ev) {
+      if (!/^https:\/\/([a-z0-9-]+\.)+googleusercontent\.com$/.test(ev.origin)) return;
+      var d = ev.data;
+      if (!d || d.kintai !== 'frame') return;
+      if (d.state === 'ready') { clearTimeout(timer); setEmbed(entry.s, true); reveal(); $('slow').hidden = true; }
+      if (d.state === 'blocked') { setEmbed(entry.s, false); go(); }
+    });
+    // 12秒たっても合図がないとき：画面を見せたうえで「開き直す」を出す
+    timer = setTimeout(function () { reveal(); $('slow').hidden = false; }, 12000);
+  }
+  function reveal() {
+    if (shown) return;
+    shown = true;
+    $('frame').classList.remove('wait');
+    $('vGo').hidden = true;
+  }
+  $('slowBtn').href = url;
+  $('slowBtn').addEventListener('click', function (ev) { ev.preventDefault(); setEmbed(entry.s, false); go(); });
+  $('slowX').addEventListener('click', function () { $('slow').hidden = true; });
+  // ホーム画面から開き直したとき（前の画面が残っていたとき）：転送の途中だったら、もう一度
+  window.addEventListener('pageshow', function (ev) { if (ev.persisted && !document.body.classList.contains('embed')) go(); });
+
+  /* ---------- はじめに ---------- */
+  $('goBtn').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    $('vSetup').hidden = true;
+    open();
+  });
   if (q.get('setup') === '1') {
     // ホーム画面に入るアドレスから「初回の印」を外す（次からはアイコンですぐ打刻画面へ）
     try { history.replaceState(null, '', ownUrl(entry)); } catch (x) { /* 古い端末はそのまま */ }
@@ -153,12 +258,7 @@
     $('vSetup').hidden = false;
     return;
   }
-
-  $('vGo').hidden = false;
-  var go = function () { location.replace(url); };
-  // ホーム画面から開き直したとき（前の画面が残っていたとき）も、もう一度打刻画面へ
-  window.addEventListener('pageshow', function (ev) { if (ev.persisted) go(); });
-  go();
+  open();
 })();
 </script>
 </body>
